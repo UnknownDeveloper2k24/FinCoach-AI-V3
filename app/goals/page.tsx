@@ -1,28 +1,21 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Header } from "@/components/navigation/header"
 import { BottomNav } from "@/components/navigation/bottom-nav"
-import { ActionButton } from "@/components/ui/action-button"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { AlertCard } from "@/components/ui/alert-card"
 import {
   Plus,
   Target,
-  TrendingUp,
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Sparkles,
   ChevronRight,
-  Edit2,
-  Pause,
   Car,
   Plane,
   Home,
@@ -30,10 +23,10 @@ import {
   Smartphone,
   Gift,
   PiggyBank,
+  Edit2,
 } from "lucide-react"
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts"
 
-// Goal icons mapping
 const goalIcons = {
   vehicle: Car,
   travel: Plane,
@@ -55,13 +48,10 @@ interface Goal {
   currentAmount: number
   deadline: string
   monthlyNeeded: number
-  status: "active" | "completed" | "paused" | "at-risk"
-  feasible: boolean
-  createdAt: string
+  status: "active" | "completed" | "at-risk"
   color: string
 }
 
-// Mock goals data
 const mockGoals: Goal[] = [
   {
     id: 1,
@@ -72,8 +62,6 @@ const mockGoals: Goal[] = [
     deadline: "2024-06-15",
     monthlyNeeded: 12750,
     status: "active",
-    feasible: true,
-    createdAt: "2024-01-01",
     color: "#22c55e",
   },
   {
@@ -85,8 +73,6 @@ const mockGoals: Goal[] = [
     deadline: "2024-03-01",
     monthlyNeeded: 3250,
     status: "active",
-    feasible: true,
-    createdAt: "2023-12-01",
     color: "#06b6d4",
   },
   {
@@ -98,8 +84,6 @@ const mockGoals: Goal[] = [
     deadline: "2024-09-01",
     monthlyNeeded: 5000,
     status: "at-risk",
-    feasible: false,
-    createdAt: "2023-10-01",
     color: "#8b5cf6",
   },
   {
@@ -111,27 +95,19 @@ const mockGoals: Goal[] = [
     deadline: "2024-01-01",
     monthlyNeeded: 0,
     status: "completed",
-    feasible: true,
-    createdAt: "2023-06-01",
     color: "#f59e0b",
   },
 ]
 
-// Progress chart data
 const progressData = [
-  { month: "Sep", actual: 0, target: 10000 },
   { month: "Oct", actual: 12000, target: 20000 },
   { month: "Nov", actual: 22000, target: 30000 },
   { month: "Dec", actual: 28000, target: 40000 },
   { month: "Jan", actual: 34000, target: 50000 },
-  { month: "Feb", actual: null, target: 60000, projected: 42000 },
-  { month: "Mar", actual: null, target: 70000, projected: 52000 },
-  { month: "Apr", actual: null, target: 80000, projected: 62000 },
-  { month: "May", actual: null, target: 85000, projected: 72000 },
-  { month: "Jun", actual: null, target: 85000, projected: 85000 },
+  { month: "Feb", projected: 42000, target: 60000 },
+  { month: "Mar", projected: 52000, target: 70000 },
 ]
 
-// Goal Card Component
 function GoalCard({ goal, onSelect }: { goal: Goal; onSelect: () => void }) {
   const progress = (goal.currentAmount / goal.targetAmount) * 100
   const Icon = goalIcons[goal.icon]
@@ -144,86 +120,79 @@ function GoalCard({ goal, onSelect }: { goal: Goal; onSelect: () => void }) {
     >
       <div className="flex items-start gap-3">
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center"
+          className="w-11 h-11 rounded-xl flex items-center justify-center"
           style={{ backgroundColor: `${goal.color}20` }}
         >
-          <Icon className="w-6 h-6" style={{ color: goal.color }} />
+          <Icon className="w-5 h-5" style={{ color: goal.color }} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1">
-            <h4 className="font-semibold text-foreground truncate">{goal.name}</h4>
-            {goal.status === "completed" && <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />}
-            {goal.status === "at-risk" && <AlertTriangle className="w-5 h-5 text-warning shrink-0" />}
-            {goal.status === "paused" && <Pause className="w-5 h-5 text-muted-foreground shrink-0" />}
+            <h4 className="font-semibold text-foreground truncate text-sm">{goal.name}</h4>
+            {goal.status === "completed" && <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />}
+            {goal.status === "at-risk" && <AlertTriangle className="w-4 h-4 text-warning shrink-0" />}
           </div>
           <div className="flex items-baseline gap-1 mb-2">
-            <span className="text-lg font-semibold text-foreground">₹{goal.currentAmount.toLocaleString()}</span>
-            <span className="text-muted-foreground text-sm">/ ₹{goal.targetAmount.toLocaleString()}</span>
+            <span className="text-base font-semibold text-foreground">₹{goal.currentAmount.toLocaleString()}</span>
+            <span className="text-muted-foreground text-xs">/ ₹{goal.targetAmount.toLocaleString()}</span>
           </div>
-          <Progress value={progress} className="h-2 mb-2" />
-          <div className="flex items-center justify-between text-xs">
+          <Progress value={progress} className="h-1.5 mb-2" />
+          <div className="flex items-center justify-between text-[10px]">
             <span className="text-muted-foreground">{Math.round(progress)}% complete</span>
             {goal.status !== "completed" && daysLeft > 0 && (
               <span className="text-muted-foreground flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                {daysLeft} days left
+                {daysLeft} days
               </span>
             )}
           </div>
         </div>
-        <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0 mt-3" />
+        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-3" />
       </div>
     </button>
   )
 }
 
-// Goal Detail Modal
 function GoalDetailModal({ goal, open, onClose }: { goal: Goal | null; open: boolean; onClose: () => void }) {
   if (!goal) return null
 
   const progress = (goal.currentAmount / goal.targetAmount) * 100
   const Icon = goalIcons[goal.icon]
-  const daysLeft = Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-  const monthsLeft = Math.ceil(daysLeft / 30)
-
-  // Calculate feasibility
-  const disposableIncome = 15000 // Mock - would come from backend
+  const disposableIncome = 15000
   const isFeasible = goal.monthlyNeeded <= disposableIncome * 0.5
 
-  // Milestones
   const milestones = [
-    { percent: 25, amount: goal.targetAmount * 0.25, reached: progress >= 25 },
-    { percent: 50, amount: goal.targetAmount * 0.5, reached: progress >= 50 },
-    { percent: 75, amount: goal.targetAmount * 0.75, reached: progress >= 75 },
-    { percent: 100, amount: goal.targetAmount, reached: progress >= 100 },
+    { percent: 25, reached: progress >= 25 },
+    { percent: 50, reached: progress >= 50 },
+    { percent: 75, reached: progress >= 75 },
+    { percent: 100, reached: progress >= 100 },
   ]
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-card border-border max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-card border-border max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              className="w-11 h-11 rounded-xl flex items-center justify-center"
               style={{ backgroundColor: `${goal.color}20` }}
             >
-              <Icon className="w-6 h-6" style={{ color: goal.color }} />
+              <Icon className="w-5 h-5" style={{ color: goal.color }} />
             </div>
             <div>
-              <DialogTitle>{goal.name}</DialogTitle>
+              <DialogTitle className="text-base">{goal.name}</DialogTitle>
               <p className="text-muted-foreground text-sm">Target: ₹{goal.targetAmount.toLocaleString()}</p>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-6 mt-4">
-          {/* Progress Overview */}
+        <div className="space-y-5 mt-4">
+          {/* Progress */}
           <div className="bg-secondary/50 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2">
               <span className="text-muted-foreground text-sm">Progress</span>
               <span className="font-semibold text-foreground">{Math.round(progress)}%</span>
             </div>
-            <Progress value={progress} className="h-3 mb-3" />
+            <Progress value={progress} className="h-2.5 mb-2" />
             <div className="flex justify-between text-sm">
               <span className="text-foreground font-medium">₹{goal.currentAmount.toLocaleString()}</span>
               <span className="text-muted-foreground">
@@ -232,60 +201,39 @@ function GoalDetailModal({ goal, open, onClose }: { goal: Goal | null; open: boo
             </div>
           </div>
 
-          {/* Feasibility Analysis */}
+          {/* Feasibility */}
           {goal.status !== "completed" && (
             <div
-              className={`rounded-xl p-4 border ${
-                isFeasible ? "bg-primary/10 border-primary/20" : "bg-warning/10 border-warning/20"
-              }`}
+              className={`rounded-xl p-4 border ${isFeasible ? "bg-primary/10 border-primary/20" : "bg-warning/10 border-warning/20"}`}
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-2">
                 {isFeasible ? (
-                  <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
                 ) : (
-                  <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                  <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
                 )}
                 <div>
-                  <p className={`font-medium ${isFeasible ? "text-primary" : "text-warning"}`}>
+                  <p className={`font-medium text-sm ${isFeasible ? "text-primary" : "text-warning"}`}>
                     {isFeasible ? "On Track" : "Needs Adjustment"}
                   </p>
-                  <p className="text-muted-foreground text-sm mt-1">
-                    {isFeasible
-                      ? `Save ₹${goal.monthlyNeeded.toLocaleString()}/month to reach your goal on time.`
-                      : `You need ₹${goal.monthlyNeeded.toLocaleString()}/month but have ₹${(disposableIncome * 0.5).toLocaleString()} available.`}
+                  <p className="text-muted-foreground text-xs mt-1">
+                    Save ₹{goal.monthlyNeeded.toLocaleString()}/month to reach your goal.
                   </p>
-                  {!isFeasible && (
-                    <div className="mt-3 space-y-2">
-                      <p className="text-xs text-muted-foreground font-medium">Suggested Actions:</p>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="secondary" size="sm" className="text-xs">
-                          Extend deadline
-                        </Button>
-                        <Button variant="secondary" size="sm" className="text-xs">
-                          Reduce Food spending
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Progress Chart */}
-          <div className="space-y-3">
-            <h4 className="font-medium text-foreground">Progress Timeline</h4>
-            <div className="h-48 -mx-2">
+          {/* Chart */}
+          <div className="space-y-2">
+            <h4 className="font-medium text-foreground text-sm">Progress Timeline</h4>
+            <div className="h-36 -mx-2">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={progressData}>
                   <defs>
-                    <linearGradient id="actualGrad" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="actualGrad2" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={goal.color} stopOpacity={0.3} />
                       <stop offset="100%" stopColor={goal.color} stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="projectedGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#64748b" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="#64748b" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <XAxis
@@ -302,20 +250,17 @@ function GoalDetailModal({ goal, open, onClose }: { goal: Goal | null; open: boo
                       borderRadius: "12px",
                       color: "oklch(0.98 0 0)",
                     }}
-                    formatter={(value: number, name: string) => [
-                      `₹${value?.toLocaleString() || 0}`,
-                      name === "actual" ? "Saved" : name === "projected" ? "Projected" : "Target",
-                    ]}
+                    formatter={(value: number) => [`₹${value?.toLocaleString()}`, ""]}
                   />
                   <ReferenceLine y={goal.targetAmount} stroke="#64748b" strokeDasharray="3 3" />
-                  <Area type="monotone" dataKey="actual" stroke={goal.color} strokeWidth={2} fill="url(#actualGrad)" />
+                  <Area type="monotone" dataKey="actual" stroke={goal.color} strokeWidth={2} fill="url(#actualGrad2)" />
                   <Area
                     type="monotone"
                     dataKey="projected"
                     stroke="#64748b"
                     strokeWidth={2}
                     strokeDasharray="4 4"
-                    fill="url(#projectedGrad)"
+                    fill="none"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -323,52 +268,18 @@ function GoalDetailModal({ goal, open, onClose }: { goal: Goal | null; open: boo
           </div>
 
           {/* Milestones */}
-          <div className="space-y-3">
-            <h4 className="font-medium text-foreground">Milestones</h4>
-            <div className="grid grid-cols-4 gap-2">
-              {milestones.map((m) => (
-                <div
-                  key={m.percent}
-                  className={`text-center p-3 rounded-xl border ${
-                    m.reached ? "bg-primary/10 border-primary/30" : "bg-secondary/50 border-border"
-                  }`}
-                >
-                  <div className={`text-lg font-bold ${m.reached ? "text-primary" : "text-muted-foreground"}`}>
-                    {m.percent}%
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">₹{(m.amount / 1000).toFixed(0)}k</div>
-                  {m.reached && <CheckCircle2 className="w-3 h-3 text-primary mx-auto mt-1" />}
+          <div className="grid grid-cols-4 gap-2">
+            {milestones.map((m) => (
+              <div
+                key={m.percent}
+                className={`text-center p-2 rounded-lg border ${m.reached ? "bg-primary/10 border-primary/30" : "bg-secondary/50 border-border"}`}
+              >
+                <div className={`text-sm font-bold ${m.reached ? "text-primary" : "text-muted-foreground"}`}>
+                  {m.percent}%
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Monthly Plan */}
-          <div className="bg-secondary/50 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-medium text-foreground">Monthly Savings Plan</h4>
-              <span className="text-primary font-semibold">₹{goal.monthlyNeeded.toLocaleString()}</span>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Daily target</span>
-                <span className="text-foreground">₹{Math.round(goal.monthlyNeeded / 30).toLocaleString()}</span>
+                {m.reached && <CheckCircle2 className="w-3 h-3 text-primary mx-auto mt-1" />}
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Months remaining</span>
-                <span className="text-foreground">{monthsLeft}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Deadline</span>
-                <span className="text-foreground">
-                  {new Date(goal.deadline).toLocaleDateString("en-IN", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </span>
-              </div>
-            </div>
+            ))}
           </div>
 
           {/* Actions */}
@@ -376,7 +287,7 @@ function GoalDetailModal({ goal, open, onClose }: { goal: Goal | null; open: boo
             <Button className="w-full">Add Funds</Button>
             <Button variant="secondary" className="w-full">
               <Edit2 className="w-4 h-4 mr-2" />
-              Edit Goal
+              Edit
             </Button>
           </div>
         </div>
@@ -385,17 +296,10 @@ function GoalDetailModal({ goal, open, onClose }: { goal: Goal | null; open: boo
   )
 }
 
-// Create Goal Modal
 function CreateGoalModal({ children }: { children: React.ReactNode }) {
   const [step, setStep] = useState(1)
-  const [goalData, setGoalData] = useState({
-    name: "",
-    amount: "",
-    deadline: "",
-    icon: "other" as GoalIconKey,
-  })
+  const [goalData, setGoalData] = useState({ name: "", amount: "", deadline: "", icon: "other" as GoalIconKey })
 
-  // Mock feasibility calculation
   const monthlyNeeded =
     goalData.amount && goalData.deadline
       ? Math.round(
@@ -403,15 +307,14 @@ function CreateGoalModal({ children }: { children: React.ReactNode }) {
             Math.max(1, Math.ceil((new Date(goalData.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 30))),
         )
       : 0
-  const disposableIncome = 15000
-  const isFeasible = monthlyNeeded <= disposableIncome * 0.5
+  const isFeasible = monthlyNeeded <= 7500
 
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="bg-card border-border max-w-md">
         <DialogHeader>
-          <DialogTitle>{step === 1 ? "Create New Goal" : step === 2 ? "Set Target" : "Feasibility Check"}</DialogTitle>
+          <DialogTitle>{step === 1 ? "Create Goal" : step === 2 ? "Set Target" : "Analysis"}</DialogTitle>
         </DialogHeader>
 
         {step === 1 && (
@@ -432,11 +335,7 @@ function CreateGoalModal({ children }: { children: React.ReactNode }) {
                   <button
                     key={key}
                     onClick={() => setGoalData({ ...goalData, icon: key as GoalIconKey })}
-                    className={`p-3 rounded-xl border transition-colors ${
-                      goalData.icon === key
-                        ? "bg-primary/10 border-primary"
-                        : "bg-secondary border-border hover:border-muted-foreground"
-                    }`}
+                    className={`p-3 rounded-xl border transition-colors ${goalData.icon === key ? "bg-primary/10 border-primary" : "bg-secondary border-border"}`}
                   >
                     <Icon className="w-5 h-5 mx-auto text-foreground" />
                   </button>
@@ -484,49 +383,25 @@ function CreateGoalModal({ children }: { children: React.ReactNode }) {
         {step === 3 && (
           <div className="space-y-4 mt-4">
             <div
-              className={`rounded-xl p-4 border ${
-                isFeasible ? "bg-primary/10 border-primary/20" : "bg-warning/10 border-warning/20"
-              }`}
+              className={`rounded-xl p-4 border ${isFeasible ? "bg-primary/10 border-primary/20" : "bg-warning/10 border-warning/20"}`}
             >
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-2 mb-2">
                 {isFeasible ? (
-                  <CheckCircle2 className="w-6 h-6 text-primary" />
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
                 ) : (
-                  <AlertTriangle className="w-6 h-6 text-warning" />
+                  <AlertTriangle className="w-5 h-5 text-warning" />
                 )}
-                <span className={`font-semibold ${isFeasible ? "text-primary" : "text-warning"}`}>
-                  {isFeasible ? "Goal is Achievable!" : "Challenging Goal"}
+                <span className={`font-semibold text-sm ${isFeasible ? "text-primary" : "text-warning"}`}>
+                  {isFeasible ? "Achievable!" : "Challenging"}
                 </span>
               </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Monthly savings needed</span>
-                  <span className="text-foreground font-medium">₹{monthlyNeeded.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Available disposable</span>
-                  <span className="text-foreground font-medium">₹{disposableIncome.toLocaleString()}</span>
-                </div>
-              </div>
-              {!isFeasible && (
-                <div className="mt-4 pt-3 border-t border-border">
-                  <p className="text-xs text-muted-foreground mb-2">Suggested adjustments:</p>
-                  <p className="text-sm text-foreground">
-                    Extend deadline by 3 months OR reduce target by ₹
-                    {((monthlyNeeded - disposableIncome * 0.5) * 6).toLocaleString()}
-                  </p>
-                </div>
-              )}
+              <p className="text-muted-foreground text-sm">Monthly savings needed: ₹{monthlyNeeded.toLocaleString()}</p>
             </div>
-
             <div className="flex gap-3">
               <Button variant="secondary" onClick={() => setStep(2)} className="flex-1">
-                Adjust
+                Back
               </Button>
-              <Button className="flex-1">
-                <Sparkles className="w-4 h-4 mr-2" />
-                Create Goal
-              </Button>
+              <Button className="flex-1">Create Goal</Button>
             </div>
           </div>
         )}
@@ -537,106 +412,47 @@ function CreateGoalModal({ children }: { children: React.ReactNode }) {
 
 export default function GoalsPage() {
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null)
-  const [filter, setFilter] = useState<"all" | "active" | "completed">("all")
 
-  const activeGoals = mockGoals.filter((g) => g.status === "active" || g.status === "at-risk")
+  const activeGoals = mockGoals.filter((g) => g.status !== "completed")
   const completedGoals = mockGoals.filter((g) => g.status === "completed")
-
-  const filteredGoals = filter === "all" ? mockGoals : filter === "active" ? activeGoals : completedGoals
-
-  const totalTarget = activeGoals.reduce((s, g) => s + g.targetAmount, 0)
-  const totalSaved = activeGoals.reduce((s, g) => s + g.currentAmount, 0)
-  const overallProgress = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0
+  const totalSaved = mockGoals.reduce((sum, g) => sum + g.currentAmount, 0)
 
   return (
     <div className="min-h-screen bg-background pb-24">
       <Header title="Goals" />
 
-      <main className="max-w-lg mx-auto px-5 py-6 space-y-6">
-        {/* Overall Progress */}
-        <div className="bg-card rounded-3xl p-6 border border-border/50">
-          <p className="text-muted-foreground text-sm mb-1">Total Saved Towards Goals</p>
-          <h2 className="text-5xl font-semibold text-foreground tracking-tight">₹{totalSaved.toLocaleString()}</h2>
-          <div className="flex items-center gap-2 mt-2 mb-4">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            <span className="text-primary text-sm font-medium">
-              {Math.round(overallProgress)}% of ₹{totalTarget.toLocaleString()} target
-            </span>
-          </div>
-          <Progress value={overallProgress} className="h-2" />
+      <main className="max-w-lg mx-auto px-5 py-4 space-y-5">
+        {/* Summary */}
+        <div className="bg-card rounded-2xl p-5 border border-border/50">
+          <p className="text-muted-foreground text-sm mb-1">Total Saved</p>
+          <h2 className="text-3xl font-semibold text-foreground">₹{totalSaved.toLocaleString()}</h2>
+          <p className="text-muted-foreground text-sm mt-1">{activeGoals.length} active goals</p>
         </div>
 
-        {/* At-risk Alert */}
-        {mockGoals.some((g) => g.status === "at-risk") && (
-          <AlertCard
-            type="warning"
-            title="Goal Needs Attention"
-            message="New iPhone goal requires ₹5,000/month more than available. Consider adjusting."
-            actions={[{ label: "Adjust Goal" }, { label: "View Suggestions" }]}
-          />
-        )}
-
-        {/* Filter Tabs */}
-        <div className="flex gap-2">
-          {["all", "active", "completed"].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f as typeof filter)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                filter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f === "all"
-                ? `All (${mockGoals.length})`
-                : f === "active"
-                  ? `Active (${activeGoals.length})`
-                  : `Done (${completedGoals.length})`}
-            </button>
-          ))}
-        </div>
-
-        {/* Goals List */}
+        {/* Active Goals */}
         <div className="space-y-3">
-          {filteredGoals.map((goal) => (
+          <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase px-1">Active Goals</h3>
+          {activeGoals.map((goal) => (
             <GoalCard key={goal.id} goal={goal} onSelect={() => setSelectedGoal(goal)} />
           ))}
         </div>
 
-        {filteredGoals.length === 0 && (
-          <div className="text-center py-12">
-            <Target className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">No goals in this category</p>
+        {/* Completed Goals */}
+        {completedGoals.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase px-1">Completed</h3>
+            {completedGoals.map((goal) => (
+              <GoalCard key={goal.id} goal={goal} onSelect={() => setSelectedGoal(goal)} />
+            ))}
           </div>
         )}
 
-        {/* Monthly Snapshot */}
-        <div className="bg-secondary/50 rounded-2xl p-5 border border-border/50">
-          <h4 className="font-medium text-foreground mb-3">This Month's Savings Plan</h4>
-          <div className="space-y-3">
-            {activeGoals.slice(0, 3).map((goal) => (
-              <div key={goal.id} className="flex items-center justify-between">
-                <span className="text-muted-foreground text-sm">{goal.name}</span>
-                <span className="text-foreground font-medium">₹{goal.monthlyNeeded.toLocaleString()}</span>
-              </div>
-            ))}
-            <div className="pt-3 border-t border-border flex items-center justify-between">
-              <span className="text-foreground font-medium">Total Monthly Target</span>
-              <span className="text-primary font-semibold">
-                ₹{activeGoals.reduce((s, g) => s + g.monthlyNeeded, 0).toLocaleString()}
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* Create Goal */}
         <CreateGoalModal>
-          <ActionButton
-            label="Create New Goal"
-            sublabel="Set a savings target with AI analysis"
-            icon={<Plus className="w-5 h-5 text-muted-foreground" />}
-          />
+          <Button className="w-full">
+            <Plus className="w-4 h-4 mr-2" />
+            Create New Goal
+          </Button>
         </CreateGoalModal>
 
         {/* Goal Detail Modal */}

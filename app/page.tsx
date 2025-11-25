@@ -12,18 +12,18 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background pb-24">
       <Header showGreeting />
 
-      <main className="max-w-lg mx-auto px-5 py-6 space-y-6">
+      <main className="max-w-lg mx-auto px-5 py-5 space-y-5">
         {/* Safe to Spend Hero */}
-        <div className="bg-card rounded-3xl p-6 border border-border/50">
+        <div className="bg-card rounded-2xl p-5 border border-border/50">
           <p className="text-muted-foreground text-sm mb-1">Safe to Spend Today</p>
-          <h2 className="text-5xl font-semibold text-foreground tracking-tight">₹420</h2>
+          <h2 className="text-4xl font-semibold text-foreground tracking-tight">₹420</h2>
           <p className="text-muted-foreground text-sm mt-2">Your trend is stable.</p>
         </div>
 
         {/* Alerts */}
         <RunoutCard />
 
-        {/* Main Cards Grid */}
+        {/* Main Cards */}
         <div className="grid gap-4">
           <CashflowCard />
           <PortfolioCard />
