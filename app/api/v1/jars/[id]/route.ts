@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 // GET /api/v1/jars/[id] - Get a specific jar
 export async function GET(
@@ -7,57 +7,30 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-    
+    const jarId = params.id;
+
     const jar = await prisma.jar.findUnique({
-      where: { id },
-      include: {
-        allocations: {
-          orderBy: { allocationDate: 'desc' },
-          take: 10, // Get the 10 most recent allocations
-        },
-      },
+      where: { id: jarId },
     });
-    
+
     if (!jar) {
       return NextResponse.json(
         { error: 'Jar not found' },
         { status: 404 }
       );
     }
-    
-    // Calculate progress percentage
-    const progress = Number(jar.targetAmount) > 0 
-      ? Math.min(100, Math.round((Number(jar.currentAmount) / Number(jar.targetAmount)) * 100)) 
-      : 0;
-    
-    // Calculate shortfall
-    const shortfall = Math.max(0, Number(jar.targetAmount) - Number(jar.currentAmount));
-    
-    // Calculate days until due
-    const daysUntilDue = jar.dueDate 
-      ? Math.max(0, Math.round((new Date(jar.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
-      : null;
-    
-    // Calculate daily amount needed to reach target by due date
-    const dailyAmountNeeded = daysUntilDue && daysUntilDue > 0
-      ? shortfall / daysUntilDue
-      : null;
-    
-    // Format response
-    const response = {
-      jar: {
-        ...jar,
-        progress,
-        shortfall,
-        daysUntilDue,
-        dailyAmountNeeded,
-      },
-    };
-    
-    return NextResponse.json(response, { status: 200 });
+
+    return NextResponse.json({
+      id: jar.id,
+      name: jar.name,
+      target: jar.targetAmount,
+      current: jar.currentAmount,
+      progress: (jar.currentAmount / jar.targetAmount) * 100,
+      category: jar.category,
+      priority: jar.priority,
+    }, { status: 200 });
   } catch (error) {
-    console.error(`Error fetching jar ${params.id}:`, error);
+    console.error('Error fetching jar:', error);
     return NextResponse.json(
       { error: 'Failed to fetch jar' },
       { status: 500 }
@@ -65,78 +38,49 @@ export async function GET(
   }
 }
 
-// PATCH /api/v1/jars/[id] - Update a jar
-export async function PATCH(
+// PUT /api/v1/jars/[id] - Update a jar
+export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
+    const jarId = params.id;
     const body = await req.json();
-    const { 
-      name, 
-      description, 
-      color, 
-      icon,
-      targetAmount, 
-      currentAmount,
-      allocationPercentage, 
-      priority, 
-      isEssential, 
-      autoAllocate, 
-      dueDate 
-    } = body;
-    
-    // Check if jar exists
-    const existingJar = await prisma.jar.findUnique({
-      where: { id },
+    const { name, targetAmount, currentAmount, category, priority } = body;
+
+    const jar = await prisma.jar.findUnique({
+      where: { id: jarId },
     });
-    
-    if (!existingJar) {
+
+    if (!jar) {
       return NextResponse.json(
         { error: 'Jar not found' },
         { status: 404 }
       );
     }
-    
-    // Update jar
+
     const updatedJar = await prisma.jar.update({
-      where: { id },
+      where: { id: jarId },
       data: {
-        name: name !== undefined ? name : undefined,
-        description: description !== undefined ? description : undefined,
-        color: color !== undefined ? color : undefined,
-        icon: icon !== undefined ? icon : undefined,
-        targetAmount: targetAmount !== undefined ? targetAmount : undefined,
-        currentAmount: currentAmount !== undefined ? currentAmount : undefined,
-        allocationPercentage: allocationPercentage !== undefined ? allocationPercentage : undefined,
-        priority: priority !== undefined ? priority : undefined,
-        isEssential: isEssential !== undefined ? isEssential : undefined,
-        autoAllocate: autoAllocate !== undefined ? autoAllocate : undefined,
-        dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : undefined,
+        name: name || jar.name,
+        targetAmount: targetAmount !== undefined ? parseFloat(targetAmount) : jar.targetAmount,
+        currentAmount: currentAmount !== undefined ? parseFloat(currentAmount) : jar.currentAmount,
+        category: category || jar.category,
+        priority: priority !== undefined ? priority : jar.priority,
       },
     });
-    
-    // Calculate progress percentage
-    const progress = Number(updatedJar.targetAmount) > 0 
-      ? Math.min(100, Math.round((Number(updatedJar.currentAmount) / Number(updatedJar.targetAmount)) * 100)) 
-      : 0;
-    
-    // Calculate shortfall
-    const shortfall = Math.max(0, Number(updatedJar.targetAmount) - Number(updatedJar.currentAmount));
-    
-    // Format response
-    const response = {
-      jar: {
-        ...updatedJar,
-        progress,
-        shortfall,
-      },
-    };
-    
-    return NextResponse.json(response, { status: 200 });
+
+    return NextResponse.json({
+      id: updatedJar.id,
+      name: updatedJar.name,
+      target: updatedJar.targetAmount,
+      current: updatedJar.currentAmount,
+      progress: (updatedJar.currentAmount / updatedJar.targetAmount) * 100,
+      category: updatedJar.category,
+      priority: updatedJar.priority,
+    }, { status: 200 });
   } catch (error) {
-    console.error(`Error updating jar ${params.id}:`, error);
+    console.error('Error updating jar:', error);
     return NextResponse.json(
       { error: 'Failed to update jar' },
       { status: 500 }
@@ -150,117 +94,31 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-    
-    // Check if jar exists
-    const existingJar = await prisma.jar.findUnique({
-      where: { id },
+    const jarId = params.id;
+
+    const jar = await prisma.jar.findUnique({
+      where: { id: jarId },
     });
-    
-    if (!existingJar) {
+
+    if (!jar) {
       return NextResponse.json(
         { error: 'Jar not found' },
         { status: 404 }
       );
     }
-    
-    // Delete jar (cascade will handle allocations)
+
     await prisma.jar.delete({
-      where: { id },
+      where: { id: jarId },
     });
-    
+
     return NextResponse.json(
       { message: 'Jar deleted successfully' },
       { status: 200 }
     );
   } catch (error) {
-    console.error(`Error deleting jar ${params.id}:`, error);
+    console.error('Error deleting jar:', error);
     return NextResponse.json(
       { error: 'Failed to delete jar' },
-      { status: 500 }
-    );
-  }
-}
-
-// POST /api/v1/jars/[id]/allocate - Allocate funds to a specific jar
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const { id } = params;
-    const body = await req.json();
-    const { amount, reason } = body;
-    
-    if (!amount) {
-      return NextResponse.json(
-        { error: 'Amount is required' },
-        { status: 400 }
-      );
-    }
-    
-    // Check if jar exists
-    const existingJar = await prisma.jar.findUnique({
-      where: { id },
-    });
-    
-    if (!existingJar) {
-      return NextResponse.json(
-        { error: 'Jar not found' },
-        { status: 404 }
-      );
-    }
-    
-    // Perform allocation in a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Update jar amount
-      const updatedJar = await tx.jar.update({
-        where: { id },
-        data: {
-          currentAmount: {
-            increment: amount,
-          },
-        },
-      });
-      
-      // Create allocation record
-      const allocation = await tx.jarAllocation.create({
-        data: {
-          jarId: id,
-          amount,
-          reason: reason || 'manual',
-        },
-      });
-      
-      return {
-        jar: updatedJar,
-        allocation,
-      };
-    });
-    
-    // Calculate progress percentage
-    const progress = Number(result.jar.targetAmount) > 0 
-      ? Math.min(100, Math.round((Number(result.jar.currentAmount) / Number(result.jar.targetAmount)) * 100)) 
-      : 0;
-    
-    // Calculate shortfall
-    const shortfall = Math.max(0, Number(result.jar.targetAmount) - Number(result.jar.currentAmount));
-    
-    // Format response
-    const response = {
-      jar: {
-        ...result.jar,
-        progress,
-        shortfall,
-      },
-      allocation: result.allocation,
-    };
-    
-    return NextResponse.json(response, { status: 200 });
-  } catch (error) {
-    console.error(`Error allocating to jar ${params.id}:`, error);
-    return NextResponse.json(
-      { error: 'Failed to allocate to jar' },
       { status: 500 }
     );
   }

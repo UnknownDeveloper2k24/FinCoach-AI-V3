@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
+import { IncomePredictor } from '@/lib/ml';
 
-// GET /api/v1/income - Get all income records for a user
+// GET /api/v1/income - Get all income records and forecasts for a user
 export async function GET(req: NextRequest) {
   try {
     const userId = req.nextUrl.searchParams.get('userId');
@@ -31,7 +32,65 @@ export async function GET(req: NextRequest) {
       orderBy: { incomeDate: 'desc' },
     });
     
-    return NextResponse.json({ incomeRecords }, { status: 200 });
+    // Convert to format expected by IncomePredictor
+    const incomeData = incomeRecords.map(record => ({
+      date: new Date(record.incomeDate),
+      amount: Number(record.amount),
+      source: record.source,
+      recurring: record.isRecurring || false,
+    }));
+
+    // Analyze patterns using ML engine
+    const patterns = IncomePredictor.analyzePatterns(incomeData);
+    
+    // Generate forecasts for 7d, 30d, 90d
+    const forecast7d = IncomePredictor.forecast(patterns, 7);
+    const forecast30d = IncomePredictor.forecast(patterns, 30);
+    const forecast90d = IncomePredictor.forecast(patterns, 90);
+    
+    // Detect income dips
+    const dips = IncomePredictor.detectDips(patterns);
+    
+    return NextResponse.json({
+      incomeRecords: incomeRecords.map(r => ({
+        id: r.id,
+        amount: Number(r.amount),
+        source: r.source,
+        date: r.incomeDate,
+        recurring: r.isRecurring,
+      })),
+      patterns: patterns.map(p => ({
+        source: p.lastOccurrence ? `${p.frequency} from ${p.lastOccurrence}` : 'Unknown',
+        frequency: p.frequency,
+        averageAmount: p.averageAmount,
+        confidence: p.confidence,
+        nextExpected: p.nextExpected,
+      })),
+      forecasts: {
+        '7d': {
+          predicted: forecast7d.predictedAmount,
+          lower: forecast7d.lowerBound,
+          upper: forecast7d.upperBound,
+          confidence: forecast7d.confidence,
+          trend: forecast7d.trend,
+        },
+        '30d': {
+          predicted: forecast30d.predictedAmount,
+          lower: forecast30d.lowerBound,
+          upper: forecast30d.upperBound,
+          confidence: forecast30d.confidence,
+          trend: forecast30d.trend,
+        },
+        '90d': {
+          predicted: forecast90d.predictedAmount,
+          lower: forecast90d.lowerBound,
+          upper: forecast90d.upperBound,
+          confidence: forecast90d.confidence,
+          trend: forecast90d.trend,
+        },
+      },
+      alerts: dips,
+    }, { status: 200 });
   } catch (error) {
     console.error('Error fetching income records:', error);
     return NextResponse.json(
@@ -71,7 +130,7 @@ export async function POST(req: NextRequest) {
     const incomeRecord = await prisma.incomeRecord.create({
       data: {
         userId,
-        amount,
+        amount: parseFloat(amount),
         source,
         incomeDate: new Date(incomeDate),
         isRecurring: isRecurring || false,
@@ -80,10 +139,16 @@ export async function POST(req: NextRequest) {
       },
     });
     
-    // Update income forecast
+    // Trigger forecast update
     await updateIncomeForecast(userId);
     
-    return NextResponse.json({ incomeRecord }, { status: 201 });
+    return NextResponse.json({
+      id: incomeRecord.id,
+      amount: Number(incomeRecord.amount),
+      source: incomeRecord.source,
+      date: incomeRecord.incomeDate,
+      recurring: incomeRecord.isRecurring,
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating income record:', error);
     return NextResponse.json(
@@ -93,7 +158,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Helper function to update income forecast
+// Helper function to update income forecast using ML
 async function updateIncomeForecast(userId: string) {
   try {
     // Get all income records for the user
@@ -102,103 +167,64 @@ async function updateIncomeForecast(userId: string) {
       orderBy: { incomeDate: 'desc' },
     });
     
-    // Calculate forecasts based on historical data and recurring income
+    // Convert to format expected by IncomePredictor
+    const incomeData = incomeRecords.map(record => ({
+      date: new Date(record.incomeDate),
+      amount: Number(record.amount),
+      source: record.source,
+      recurring: record.isRecurring || false,
+    }));
+
+    // Analyze patterns using ML engine
+    const patterns = IncomePredictor.analyzePatterns(incomeData);
+    
+    // Generate forecasts
+    const forecast7d = IncomePredictor.forecast(patterns, 7);
+    const forecast30d = IncomePredictor.forecast(patterns, 30);
+    const forecast90d = IncomePredictor.forecast(patterns, 90);
+    
+    // Detect dips
+    const dips = IncomePredictor.detectDips(patterns);
+    
     const now = new Date();
-    
-    // Filter records from the last 90 days for analysis
-    const recentRecords = incomeRecords.filter(record => {
-      const recordDate = new Date(record.incomeDate);
-      const daysDiff = (now.getTime() - recordDate.getTime()) / (1000 * 60 * 60 * 24);
-      return daysDiff <= 90;
-    });
-    
-    // Calculate recurring income
-    const recurringIncome = incomeRecords
-      .filter(record => record.isRecurring && record.nextExpectedDate)
-      .reduce((acc, record) => {
-        const nextDate = new Date(record.nextExpectedDate!);
-        const daysDiff = (nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-        
-        // Add to 7-day forecast
-        if (daysDiff <= 7) acc.days7 += Number(record.amount);
-        
-        // Add to 30-day forecast
-        if (daysDiff <= 30) acc.days30 += Number(record.amount);
-        
-        // Add to 90-day forecast
-        if (daysDiff <= 90) acc.days90 += Number(record.amount);
-        
-        return acc;
-      }, { days7: 0, days30: 0, days90: 0 });
-    
-    // Calculate non-recurring historical averages
-    const historicalAverages = calculateHistoricalAverages(recentRecords);
-    
-    // Combine recurring and historical for final forecast
-    const forecast7Day = recurringIncome.days7 + historicalAverages.days7;
-    const forecast30Day = recurringIncome.days30 + historicalAverages.days30;
-    const forecast90Day = recurringIncome.days90 + historicalAverages.days90;
-    
-    // Calculate confidence scores (simplified)
-    const confidence7Day = calculateConfidence(recentRecords, 7);
-    const confidence30Day = calculateConfidence(recentRecords, 30);
-    const confidence90Day = calculateConfidence(recentRecords, 90);
-    
-    // Calculate upper and lower bounds (simplified)
-    const variability = calculateVariability(recentRecords);
-    
-    const lower7Day = forecast7Day * (1 - variability * (1 - confidence7Day / 100));
-    const upper7Day = forecast7Day * (1 + variability * (1 - confidence7Day / 100));
-    
-    const lower30Day = forecast30Day * (1 - variability * (1 - confidence30Day / 100));
-    const upper30Day = forecast30Day * (1 + variability * (1 - confidence30Day / 100));
-    
-    const lower90Day = forecast90Day * (1 - variability * (1 - confidence90Day / 100));
-    const upper90Day = forecast90Day * (1 + variability * (1 - confidence90Day / 100));
-    
-    // Detect trend
-    const trend = detectTrend(recentRecords);
-    
-    // Detect income dips
-    const incomeDips = detectIncomeDips(recentRecords);
     
     // Update or create forecast
     await prisma.incomeForecast.upsert({
       where: { userId },
       update: {
-        forecast7Day,
-        forecast30Day,
-        forecast90Day,
-        confidence7Day,
-        confidence30Day,
-        confidence90Day,
-        lower7Day,
-        upper7Day,
-        lower30Day,
-        upper30Day,
-        lower90Day,
-        upper90Day,
-        trend,
-        incomeDips,
+        forecast7Day: forecast7d.predictedAmount,
+        forecast30Day: forecast30d.predictedAmount,
+        forecast90Day: forecast90d.predictedAmount,
+        confidence7Day: forecast7d.confidence,
+        confidence30Day: forecast30d.confidence,
+        confidence90Day: forecast90d.confidence,
+        lower7Day: forecast7d.lowerBound,
+        upper7Day: forecast7d.upperBound,
+        lower30Day: forecast30d.lowerBound,
+        upper30Day: forecast30d.upperBound,
+        lower90Day: forecast90d.lowerBound,
+        upper90Day: forecast90d.upperBound,
+        trend: forecast30d.trend,
+        incomeDips: dips.length > 0,
         lastUpdated: now,
         updatedAt: now,
       },
       create: {
         userId,
-        forecast7Day,
-        forecast30Day,
-        forecast90Day,
-        confidence7Day,
-        confidence30Day,
-        confidence90Day,
-        lower7Day,
-        upper7Day,
-        lower30Day,
-        upper30Day,
-        lower90Day,
-        upper90Day,
-        trend,
-        incomeDips,
+        forecast7Day: forecast7d.predictedAmount,
+        forecast30Day: forecast30d.predictedAmount,
+        forecast90Day: forecast90d.predictedAmount,
+        confidence7Day: forecast7d.confidence,
+        confidence30Day: forecast30d.confidence,
+        confidence90Day: forecast90d.confidence,
+        lower7Day: forecast7d.lowerBound,
+        upper7Day: forecast7d.upperBound,
+        lower30Day: forecast30d.lowerBound,
+        upper30Day: forecast30d.upperBound,
+        lower90Day: forecast90d.lowerBound,
+        upper90Day: forecast90d.upperBound,
+        trend: forecast30d.trend,
+        incomeDips: dips.length > 0,
         lastUpdated: now,
         updatedAt: now,
       },
@@ -206,109 +232,4 @@ async function updateIncomeForecast(userId: string) {
   } catch (error) {
     console.error('Error updating income forecast:', error);
   }
-}
-
-// Helper function to calculate historical averages
-function calculateHistoricalAverages(records: any[]) {
-  // Simple implementation - can be enhanced with more sophisticated algorithms
-  const totalIncome = records.reduce((sum, record) => sum + Number(record.amount), 0);
-  const avgDailyIncome = records.length > 0 ? totalIncome / 90 : 0; // Assuming 90 days of data
-  
-  return {
-    days7: avgDailyIncome * 7,
-    days30: avgDailyIncome * 30,
-    days90: avgDailyIncome * 90,
-  };
-}
-
-// Helper function to calculate confidence score
-function calculateConfidence(records: any[], days: number) {
-  // Simple implementation - more data and consistent patterns increase confidence
-  if (records.length === 0) return 30; // Base confidence
-  
-  const recurringCount = records.filter(r => r.isRecurring).length;
-  const recurringRatio = recurringCount / records.length;
-  
-  // More recurring income = higher confidence
-  const baseConfidence = 50 + (recurringRatio * 30);
-  
-  // Adjust based on forecast period (shorter = higher confidence)
-  const periodAdjustment = days <= 7 ? 15 : days <= 30 ? 5 : 0;
-  
-  // Adjust based on data quantity
-  const dataAdjustment = Math.min(records.length * 2, 15);
-  
-  return Math.min(Math.round(baseConfidence + periodAdjustment + dataAdjustment), 95);
-}
-
-// Helper function to calculate income variability
-function calculateVariability(records: any[]) {
-  if (records.length <= 1) return 0.2; // Default variability
-  
-  const amounts = records.map(r => Number(r.amount));
-  const mean = amounts.reduce((sum, val) => sum + val, 0) / amounts.length;
-  
-  // Calculate standard deviation
-  const variance = amounts.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / amounts.length;
-  const stdDev = Math.sqrt(variance);
-  
-  // Coefficient of variation (normalized standard deviation)
-  const cv = mean > 0 ? stdDev / mean : 0.2;
-  
-  // Limit to reasonable range
-  return Math.max(0.05, Math.min(cv, 0.5));
-}
-
-// Helper function to detect trend
-function detectTrend(records: any[]) {
-  if (records.length < 3) return 'stable';
-  
-  // Sort by date
-  const sortedRecords = [...records].sort((a, b) => 
-    new Date(a.incomeDate).getTime() - new Date(b.incomeDate).getTime()
-  );
-  
-  // Split into three periods and calculate averages
-  const third = Math.floor(sortedRecords.length / 3);
-  
-  const firstPeriod = sortedRecords.slice(0, third);
-  const middlePeriod = sortedRecords.slice(third, third * 2);
-  const lastPeriod = sortedRecords.slice(third * 2);
-  
-  const firstAvg = firstPeriod.reduce((sum, r) => sum + Number(r.amount), 0) / firstPeriod.length;
-  const middleAvg = middlePeriod.reduce((sum, r) => sum + Number(r.amount), 0) / middlePeriod.length;
-  const lastAvg = lastPeriod.reduce((sum, r) => sum + Number(r.amount), 0) / lastPeriod.length;
-  
-  // Calculate trend
-  const threshold = 0.1; // 10% change threshold
-  
-  if (lastAvg > middleAvg * (1 + threshold) && middleAvg > firstAvg * (1 + threshold)) {
-    return 'up';
-  } else if (lastAvg < middleAvg * (1 - threshold) && middleAvg < firstAvg * (1 - threshold)) {
-    return 'down';
-  } else {
-    return 'stable';
-  }
-}
-
-// Helper function to detect income dips
-function detectIncomeDips(records: any[]) {
-  if (records.length < 3) return false;
-  
-  // Sort by date (newest first)
-  const sortedRecords = [...records].sort((a, b) => 
-    new Date(b.incomeDate).getTime() - new Date(a.incomeDate).getTime()
-  );
-  
-  // Calculate average income
-  const totalIncome = sortedRecords.reduce((sum, r) => sum + Number(r.amount), 0);
-  const avgIncome = totalIncome / sortedRecords.length;
-  
-  // Check if any of the recent records show significant dips
-  const significantDipThreshold = 0.3; // 30% below average
-  
-  // Check the most recent 3 records for dips
-  const recentRecords = sortedRecords.slice(0, 3);
-  
-  return recentRecords.some(record => Number(record.amount) < avgIncome * (1 - significantDipThreshold));
 }
